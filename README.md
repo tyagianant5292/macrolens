@@ -134,12 +134,30 @@ gitignored, so a fresh clone has no `src/generated/` and the build fails without
 
 ## Install it on your phone
 
-It's a PWA. Open the deployed URL in Safari (iPhone) or Chrome (Android), then **Share → Add to
-Home Screen**. It gets an icon, runs full-screen with no browser chrome, and the photo button
-opens the camera directly.
+It's a PWA — no app store, no build, no signing.
 
-Two things only work over HTTPS, so they'll be dead on `localhost` from your phone but fine on
-the deployed URL: the camera (photo + barcode) and the install prompt itself.
+**iPhone (Safari only** — Chrome on iOS can't install PWAs): open the URL → Share ⬆️ → **Add to
+Home Screen**.
+
+**Android (Chrome)**: open the URL → ⋮ → **Install app**. Chrome usually offers this by itself
+as a banner.
+
+Both give you a home-screen icon, a full-screen app with no address bar, and a photo button
+wired straight to the camera.
+
+Three things are load-bearing here and easy to break:
+
+- **`public/sw.js` must exist and must have a `fetch` handler.** Chrome will not offer "Install
+  app" on Android without a registered service worker. iOS doesn't care, which is exactly how
+  this shipped broken on Android while looking fine on an iPhone.
+- **The manifest needs real 192px and 512px PNGs.** An SVG renders perfectly and still fails
+  Chrome's install criteria. `public/icon-*.png` are generated from `public/icon.svg`.
+- **HTTPS.** The camera (photo + barcode) and the install prompt are both HTTPS-only, so
+  neither works when you point your phone at a `localhost` dev server. Test them on the deploy.
+
+The service worker caches **only** content-hashed assets under `/_next/static/` and the icons.
+Not the API, not photos, not documents — this app is signed-in and multi-user, and a cached
+food log or meal photo would be served to whoever opens the app next on that device.
 
 ## Why USDA and not an Indian database
 
