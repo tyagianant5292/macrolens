@@ -1,5 +1,3 @@
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
@@ -26,13 +24,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // The app is dark-only, so Clerk's own UI has to be too — otherwise sign-in is a white
-    // flash in the middle of a black app. In Clerk v7 the theme is the appearance object;
-    // the old `{ baseTheme: dark }` wrapper is gone.
-    <ClerkProvider appearance={dark}>
-      <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-        <body className="min-h-full flex flex-col font-sans">{children}</body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col font-sans">{children}</body>
+    </html>
   );
 }

@@ -50,8 +50,9 @@ local one, run `npx prisma dev` in a second terminal and paste the `DATABASE_URL
 `.env` — but note that `prisma dev`'s server doesn't get on with `migrate deploy`, so use
 `npm run db:push` against that one.
 
-**Auth** — Clerk. In development you can leave the keys out entirely: it starts in keyless mode
-and prints a link to claim a dev instance. **Production needs real keys.**
+**Auth** — magic link via Auth.js. Needs `AUTH_SECRET`, plus `BREVO_API_KEY` and a **verified**
+`MAIL_FROM` sender in Brevo. An unverified sender is the one failure that looks like a bug in
+the app and isn't: Brevo rejects the send outright.
 
 **Model — nothing is hardcoded.** No vendor, host or model name appears anywhere in `src/`.
 The provider is four environment variables:
@@ -120,7 +121,8 @@ Vercel. Set these in the project's environment variables, then push:
 | --- | --- |
 | `DATABASE_URL` | Neon connection string |
 | `AI_BASE_URL`, `AI_API_KEY` | your OpenAI-compatible endpoint |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | **required** — keyless mode is dev-only |
+| `AUTH_SECRET`, `AUTH_URL` | `AUTH_URL` must be the real production origin |
+| `BREVO_API_KEY`, `MAIL_FROM` | `MAIL_FROM` must be a verified Brevo sender |
 | `USDA_API_KEY` | optional but strongly advised |
 
 Run `npm run db:deploy` once against the production `DATABASE_URL` to create the tables. It is
@@ -166,18 +168,29 @@ lying to you.
 
 ## Auth
 
-Clerk, and **protection lives on the resource, not in the proxy**. Every API route's first line
-is `requireUser()`; `page.tsx` redirects on the server. `src/proxy.ts` only attaches Clerk's
-auth context.
+Magic link, via Auth.js. You type your email, you get a link, you're in. No passwords, and **no
+third-party identity provider** — users are rows in your own Postgres, and the sign-in email
+goes out through Brevo's REST API.
 
-That's deliberate and Clerk now recommends it: middleware-based `auth.protect()` matches on
-paths, and path matching diverges from how Next actually routes. When this app used it, the
-route matcher 404'd *the entire app including the sign-in page*. Resource-based checks can't
-drift, because the check sits where the data is.
+That last part is the whole reason this isn't Clerk. A hosted identity provider owns the user
+id that every `FoodEntry` is keyed to. If that account lapses, gets recreated, or the free tier
+runs out, the ids change and **every meal you ever logged is orphaned** — the rows are still
+there, and nothing can reach them. Owning the `User` table removes that failure mode entirely.
 
-The cost is that a new route is unguarded until it says otherwise — `/api/parse` shipped open
-for exactly that reason, and it spends money on every call. **If you add a route, guard it.**
-`find src/app/api -name route.ts | xargs grep -L requireUser` should print nothing.
+**Protection lives on the resource, not in middleware.** Every API route's first line is
+`requireUser()`; `page.tsx` redirects on the server. There is no proxy-level path matcher,
+because path matching drifts from how Next actually routes — an earlier middleware-based
+version of this app 404'd *itself, including the sign-in page*.
+
+The cost is that a new route is unguarded until it says otherwise. `/api/parse` shipped open
+for exactly that reason, and it spends money on every call. **If you add a route, guard it:**
+
+```bash
+find src/app/api -name route.ts | grep -v '\[...nextauth\]' | xargs grep -L requireUser
+```
+
+should print nothing. (`[...nextauth]` is the one legitimate exception — guarding the sign-in
+route would mean you must be signed in to sign in.)
 
 ## Deliberately not here yet
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AddSheet } from "@/components/AddSheet";
@@ -20,7 +19,7 @@ type WeekResponse = {
 
 type Tab = "day" | "week";
 
-export function DayView() {
+export function DayView({ accessory }: { accessory?: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("day");
   const [day, setDay] = useState(todayYmd);
   const [data, setData] = useState<DayResponse | null>(null);
@@ -108,7 +107,7 @@ export function DayView() {
         goal={data.goal}
         onDayChange={setDay}
         onEditGoals={() => setEditingGoals(true)}
-        accessory={<UserButton />}
+        accessory={accessory}
       />
 
       <main className="mx-auto w-full max-w-lg flex-1 px-4 py-4">

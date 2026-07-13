@@ -41,17 +41,58 @@ model Photo {
   @@index([userId])
 }
 
+/// Identity lives here, in your own database — there is no third-party account to lose. The
+/// only way in is a magic link sent to `email`, so `email` IS the identity; a user who changes
+/// their address gets a new row, which for a personal food log is the correct behaviour.
 model User {
-  id String @id @default(cuid())
-  /// Clerk's user id. The only thing that identifies a request — email is display data and
-  /// can change under you, so never key auth off it.
-  clerkId   String      @unique
-  email     String?
-  name      String?
-  createdAt DateTime    @default(now())
-  goal      Goal?
-  entries   FoodEntry[]
-  photos    Photo[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  accounts Account[]
+  sessions Session[]
+
+  goal    Goal?
+  entries FoodEntry[]
+  photos  Photo[]
+}
+
+/// Auth.js requires these three even for magic-link-only auth. `Account` stays empty unless
+/// you add an OAuth provider later; `Session` is the live login; `VerificationToken` is the
+/// one-time magic link, deleted the moment it's used.
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
 }
 
 /// Daily targets. Micros are deliberately not goal-tracked — dial in macros first.

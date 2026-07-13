@@ -12,8 +12,8 @@ type Props = {
   goal: Goal | null;
   onDayChange: (day: string) => void;
   onEditGoals: () => void;
-  /// Slot for the Clerk <UserButton>. Passed in rather than imported here so this stays a
-  /// dumb presentational component with no auth dependency.
+  /// Slot for the sign-out button. Passed in rather than imported, because that button is a
+  /// server component (its action must invalidate the Session row) and this is a client one.
   accessory?: React.ReactNode;
 };
 

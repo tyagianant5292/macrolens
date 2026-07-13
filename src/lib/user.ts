@@ -1,42 +1,36 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma } from "./prisma";
 
-/// Resolve the signed-in Clerk user to our local row, creating it on first sight.
+/// The signed-in user's row, or null.
 ///
-/// Clerk owns identity; we own the diet log. The join is `User.clerkId` — never email, which
-/// is display data the user can change out from under us.
+/// Auth.js already created the User row (the Prisma adapter does it the first time a magic
+/// link is used), so this only has to load it — and make sure it has a Goal, since the adapter
+/// knows nothing about ours.
 ///
 /// Returns null when nobody is signed in. Callers MUST handle that: this function is the only
 /// thing standing between one person's food log and everyone else's.
 export async function getCurrentUser() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return null;
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return null;
 
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
     include: { goal: true },
   });
-  if (existing?.goal) return existing;
+  if (!user) return null; // session outlived the row (deleted account)
 
-  // First request from this Clerk account (or a user whose Goal row is somehow missing).
-  const clerkUser = await currentUser();
+  if (!user.goal) {
+    const goal = await prisma.goal.create({ data: { userId: user.id } });
+    return { ...user, goal };
+  }
 
-  return prisma.user.upsert({
-    where: { clerkId },
-    create: {
-      clerkId,
-      email: clerkUser?.primaryEmailAddress?.emailAddress ?? null,
-      name: clerkUser?.firstName ?? null,
-      goal: { create: {} },
-    },
-    update: { goal: { create: {} } },
-    include: { goal: true },
-  });
+  return user;
 }
 
-/// The shape every authenticated route wants: a user, or a 401 to return.
 export type Authed = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
+/// The shape every authenticated route wants: a user, or a 401 to return.
 export async function requireUser(): Promise<
   { user: Authed; res?: never } | { user?: never; res: Response }
 > {

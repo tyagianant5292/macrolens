@@ -1,15 +1,15 @@
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { DayView } from "@/components/DayView";
+import { SignOutButton } from "@/components/SignOutButton";
 
 /// The auth gate for the app itself, enforced on the server before a byte of the log is sent.
-///
-/// This is deliberately here rather than in `proxy.ts`: Clerk deprecated middleware-based
-/// protection because path matching can diverge from real routing. Checking at the resource
-/// can't diverge — if this component renders, the user is signed in.
+/// If this component renders, the user is signed in — there is no client-side check to defeat.
 export default async function Home() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const session = await auth();
+  if (!session?.user?.id) redirect("/sign-in");
 
-  return <DayView />;
+  // DayView is a client component, so the (server-action-backed) sign-out button has to be
+  // handed in as a prop rather than imported inside it.
+  return <DayView accessory={<SignOutButton />} />;
 }
