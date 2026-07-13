@@ -1,6 +1,10 @@
 import { auth } from "@/auth";
 import { prisma } from "./prisma";
 
+/// What a new account starts with. Just a starting point — the whole thing is editable, so
+/// somebody who eats five times a day isn't stuck pretending it's four.
+const DEFAULT_MEALS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
+
 /// The signed-in user's row, or null.
 ///
 /// Auth.js already created the User row (the Prisma adapter does it the first time a magic
@@ -16,13 +20,24 @@ export async function getCurrentUser() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { goal: true },
+    include: { goal: true, meals: { orderBy: { order: "asc" } } },
   });
   if (!user) return null; // session outlived the row (deleted account)
 
+  // Auth.js's adapter creates the User row and knows nothing about goals or meals, so the
+  // first request from a new account has to fill them in.
   if (!user.goal) {
-    const goal = await prisma.goal.create({ data: { userId: user.id } });
-    return { ...user, goal };
+    user.goal = await prisma.goal.create({ data: { userId: user.id } });
+  }
+
+  if (user.meals.length === 0) {
+    await prisma.mealSlot.createMany({
+      data: DEFAULT_MEALS.map((name, order) => ({ userId: user.id, name, order })),
+    });
+    user.meals = await prisma.mealSlot.findMany({
+      where: { userId: user.id },
+      orderBy: { order: "asc" },
+    });
   }
 
   return user;

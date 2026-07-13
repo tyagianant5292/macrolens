@@ -1,23 +1,20 @@
 import type { Totals } from "./totals";
 import type { Micros } from "./nutrition/types";
 
-export const MEALS = ["BREAKFAST", "LUNCH", "SNACK", "DINNER"] as const;
-export type Meal = (typeof MEALS)[number];
-
-export const MEAL_LABELS: Record<Meal, string> = {
-  BREAKFAST: "Breakfast",
-  LUNCH: "Lunch",
-  SNACK: "Snacks",
-  DINNER: "Dinner",
-};
-
 export type Source = "USDA" | "OFF" | "AI" | "MANUAL";
+
+/// A meal slot — "Breakfast", "Tea time", "Bed time". User-defined, user-ordered.
+export type MealSlot = {
+  id: string;
+  name: string;
+  order: number;
+};
 
 /// A saved entry, as returned by GET /api/day.
 export type Entry = {
   id: string;
   date: string;
-  meal: Meal;
+  mealId: string;
   name: string;
   quantity: number;
   unit: string;
@@ -35,16 +32,16 @@ export type Entry = {
   barcode: string | null;
 };
 
-/// An item that's been parsed and priced but not yet saved — what the review sheet edits.
+/// An item that's been parsed and priced but not yet saved — what the add sheet accumulates.
 export type DraftItem = Omit<
   Entry,
-  "id" | "date" | "meal" | "photoId" | "barcode" | "micros"
+  "id" | "date" | "mealId" | "photoId" | "barcode" | "micros"
 > & {
   micros: Micros;
 };
 
 /// What /api/parse, /api/analyze and /api/barcode all return. Three very different inputs,
-/// one shape — so the review sheet doesn't care which produced it.
+/// one shape — so the add sheet doesn't care which produced it.
 export type DraftResponse = {
   items: DraftItem[];
   photoId?: string;
@@ -62,6 +59,7 @@ export type Goal = {
 
 export type DayResponse = {
   date: string;
+  meals: MealSlot[];
   entries: Entry[];
   totals: Totals;
   goal: Goal;

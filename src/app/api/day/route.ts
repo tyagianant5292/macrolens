@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { sumEntries } from "@/lib/totals";
 import { requireUser } from "@/lib/user";
 
-/// Everything the day view needs in one round-trip: entries grouped by meal, per-meal
-/// totals, the day total, and the user's goals.
+/// Everything the day view needs in one round-trip: the user's meal slots (in their order),
+/// the day's entries, the day total, and the goals to measure it against.
 export async function GET(request: NextRequest) {
   const { user, res } = await requireUser();
   if (res) return res;
@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     date: day,
+    // Sent even when empty — the UI renders a card per slot, not per slot-with-food.
+    meals: user.meals,
     entries,
     totals: sumEntries(entries),
     goal: user.goal,

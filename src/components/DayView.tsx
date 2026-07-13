@@ -4,11 +4,11 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AddSheet } from "@/components/AddSheet";
 import { DayHeader } from "@/components/DayHeader";
-import { GoalsSheet } from "@/components/GoalsSheet";
+import { SettingsSheet } from "@/components/SettingsSheet";
 import { MealCard } from "@/components/MealCard";
 import { MicrosPanel } from "@/components/MicrosPanel";
 import { WeekChart, type WeekDay } from "@/components/WeekChart";
-import { MEALS, type DayResponse, type Goal, type Meal } from "@/lib/api-types";
+import type { DayResponse, Goal, MealSlot } from "@/lib/api-types";
 import { todayYmd } from "@/lib/date";
 
 type WeekResponse = {
@@ -25,8 +25,8 @@ export function DayView({ accessory }: { accessory?: React.ReactNode }) {
   const [data, setData] = useState<DayResponse | null>(null);
   const [week, setWeek] = useState<WeekResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState<Meal | null>(null);
-  const [editingGoals, setEditingGoals] = useState(false);
+  const [adding, setAdding] = useState<MealSlot | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Bumped whenever something we wrote needs re-reading. Refetching is the effect's job,
   // so mutations signal it rather than calling fetch themselves.
   const [stamp, setStamp] = useState(0);
@@ -106,7 +106,7 @@ export function DayView({ accessory }: { accessory?: React.ReactNode }) {
         totals={data.totals}
         goal={data.goal}
         onDayChange={setDay}
-        onEditGoals={() => setEditingGoals(true)}
+        onEditGoals={() => setSettingsOpen(true)}
         accessory={accessory}
       />
 
@@ -132,11 +132,11 @@ export function DayView({ accessory }: { accessory?: React.ReactNode }) {
 
         {tab === "day" ? (
           <div className="space-y-3">
-            {MEALS.map((meal) => (
+            {data.meals.map((meal) => (
               <MealCard
-                key={meal}
+                key={meal.id}
                 meal={meal}
-                entries={data.entries.filter((e) => e.meal === meal)}
+                entries={data.entries.filter((e) => e.mealId === meal.id)}
                 onAdd={setAdding}
                 onDelete={deleteEntry}
                 onGramsChange={changeGrams}
@@ -168,14 +168,14 @@ export function DayView({ accessory }: { accessory?: React.ReactNode }) {
         />
       )}
 
-      {editingGoals && (
-        <GoalsSheet
+      {settingsOpen && (
+        <SettingsSheet
           goal={data.goal}
-          onClose={() => setEditingGoals(false)}
-          onSaved={() => {
-            setEditingGoals(false);
-            refresh();
-          }}
+          meals={data.meals}
+          onClose={() => setSettingsOpen(false)}
+          // Stay open: meals are edited several at a time, and a sheet that slams shut after
+          // each rename would be maddening. Just re-read so the list underneath stays true.
+          onChanged={refresh}
         />
       )}
     </>

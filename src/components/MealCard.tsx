@@ -1,26 +1,29 @@
 "use client";
 
-import { Barcode, Plus, Sparkles, Trash2 } from "lucide-react";
-import { MEAL_LABELS, type Entry, type Meal } from "@/lib/api-types";
+import { Barcode, ChevronDown, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useState } from "react";
+import type { Entry, MealSlot } from "@/lib/api-types";
 import { round } from "@/lib/nutrition/types";
 import { sumEntries } from "@/lib/totals";
+import { MacroLine, NutritionDetail } from "./NutritionRow";
 
 type Props = {
-  meal: Meal;
+  meal: MealSlot;
   entries: Entry[];
-  onAdd: (meal: Meal) => void;
+  onAdd: (meal: MealSlot) => void;
   onDelete: (id: string) => void;
   onGramsChange: (id: string, grams: number) => void;
 };
 
 export function MealCard({ meal, entries, onAdd, onDelete, onGramsChange }: Props) {
+  const [open, setOpen] = useState<string | null>(null);
   const totals = sumEntries(entries);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold">{MEAL_LABELS[meal]}</h2>
+          <h2 className="text-sm font-semibold">{meal.name}</h2>
           {entries.length > 0 && (
             <span className="font-mono text-xs tabular-nums text-muted">
               {round(totals.kcal, 0)} kcal · {round(totals.protein, 0)}g P
@@ -29,7 +32,7 @@ export function MealCard({ meal, entries, onAdd, onDelete, onGramsChange }: Prop
         </div>
         <button
           onClick={() => onAdd(meal)}
-          aria-label={`Add food to ${MEAL_LABELS[meal]}`}
+          aria-label={`Add food to ${meal.name}`}
           className="grid size-7 place-items-center rounded-lg bg-surface-2 text-muted hover:text-foreground"
         >
           <Plus className="size-4" />
@@ -45,76 +48,93 @@ export function MealCard({ meal, entries, onAdd, onDelete, onGramsChange }: Prop
         </button>
       ) : (
         <ul className="divide-y divide-border border-t border-border">
-          {entries.map((e) => (
-            <li key={e.id} className="group flex items-center gap-3 px-4 py-2.5">
-              {e.photoId && (
-                // next/image can't optimise an authenticated API route, and the client
-                // already downscaled these to ~80KB — there's nothing left to optimise.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/photos/${e.photoId}`}
-                  alt=""
-                  loading="lazy"
-                  className="size-9 shrink-0 rounded-md object-cover"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm capitalize">{e.name}</span>
-                  {e.source === "AI" && (
-                    // The user needs to know which numbers are a model's guess vs. lab data.
-                    <span
-                      title="Estimated by AI — not from a nutrition database"
-                      className="flex shrink-0 items-center gap-0.5 rounded bg-surface-2 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted"
-                    >
-                      <Sparkles className="size-2.5" />
-                      est
-                    </span>
+          {entries.map((e) => {
+            const isOpen = open === e.id;
+
+            return (
+              <li key={e.id}>
+                <div className="group flex items-center gap-3 px-4 py-2.5">
+                  {e.photoId && (
+                    // next/image can't optimise an authenticated API route, and the client
+                    // already downscaled these to ~80KB — there's nothing left to optimise.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/photos/${e.photoId}`}
+                      alt=""
+                      loading="lazy"
+                      className="size-9 shrink-0 rounded-md object-cover"
+                    />
                   )}
-                  {e.source === "OFF" && (
-                    <span
-                      title="From the manufacturer's label, via barcode"
-                      className="grid size-3.5 shrink-0 place-items-center text-muted"
-                    >
-                      <Barcode className="size-3" />
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    defaultValue={round(e.grams, 0)}
-                    min={1}
-                    max={5000}
-                    onBlur={(ev) => {
-                      const g = Number(ev.target.value);
-                      if (g > 0 && g !== round(e.grams, 0)) onGramsChange(e.id, g);
-                      else ev.target.value = String(round(e.grams, 0));
-                    }}
-                    className="w-11 rounded border border-transparent bg-transparent px-1 py-0.5 text-right font-mono tabular-nums hover:border-border focus:border-border focus:outline-none"
-                  />
-                  <span>g</span>
-                  <span className="mx-0.5 text-border">·</span>
-                  <span className="font-mono tabular-nums">
-                    {round(e.protein, 0)}P {round(e.carbs, 0)}C {round(e.fat, 0)}F
+
+                  <button
+                    onClick={() => setOpen(isOpen ? null : e.id)}
+                    aria-expanded={isOpen}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm capitalize">{e.name}</span>
+                      {e.source === "AI" && (
+                        // The user needs to know which numbers are a model's guess vs lab data.
+                        <span
+                          title="Estimated by AI — not from a nutrition database"
+                          className="flex shrink-0 items-center gap-0.5 rounded bg-surface-2 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted"
+                        >
+                          <Sparkles className="size-2.5" />
+                          est
+                        </span>
+                      )}
+                      {e.source === "OFF" && (
+                        <Barcode
+                          className="size-3 shrink-0 text-muted"
+                          aria-label="From the manufacturer's label"
+                        />
+                      )}
+                      <ChevronDown
+                        className={`ml-auto size-3.5 shrink-0 text-muted transition-transform ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                    <div className="mt-1">
+                      <MacroLine n={e} />
+                    </div>
+                  </button>
+
+                  <div className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      defaultValue={round(e.grams, 0)}
+                      min={1}
+                      max={5000}
+                      aria-label={`Grams of ${e.name}`}
+                      onBlur={(ev) => {
+                        const g = Number(ev.target.value);
+                        if (g > 0 && g !== round(e.grams, 0)) onGramsChange(e.id, g);
+                        else ev.target.value = String(round(e.grams, 0));
+                      }}
+                      className="w-11 rounded border border-transparent bg-transparent px-1 py-0.5 text-right font-mono tabular-nums hover:border-border focus:border-border focus:outline-none"
+                    />
+                    <span>g</span>
+                  </div>
+
+                  <span className="w-11 shrink-0 text-right font-mono text-sm tabular-nums">
+                    {round(e.kcal, 0)}
                   </span>
+
+                  <button
+                    onClick={() => onDelete(e.id)}
+                    aria-label={`Remove ${e.name}`}
+                    className="grid size-7 shrink-0 place-items-center rounded-lg text-muted transition hover:text-[var(--over)]"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
                 </div>
-              </div>
 
-              <span className="shrink-0 font-mono text-sm tabular-nums">
-                {round(e.kcal, 0)}
-              </span>
-
-              <button
-                onClick={() => onDelete(e.id)}
-                aria-label={`Remove ${e.name}`}
-                className="grid size-7 shrink-0 place-items-center rounded-lg text-muted opacity-0 transition hover:text-red-400 focus:opacity-100 group-hover:opacity-100 max-md:opacity-60"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </li>
-          ))}
+                {isOpen && <NutritionDetail n={e} />}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

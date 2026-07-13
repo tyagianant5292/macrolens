@@ -6,8 +6,10 @@ import { requireUser } from "@/lib/user";
 
 const bodySchema = z.object({
   date: z.string().refine(isYmd, "expected YYYY-MM-DD"),
-  meal: z.enum(["BREAKFAST", "LUNCH", "SNACK", "DINNER"]),
-  /// From /api/analyze. Verified below to belong to this user — otherwise anyone could attach
+  /// Verified below to be one of this user's own slots — otherwise you could file food into
+  /// somebody else's meal by guessing an id.
+  mealId: z.string().min(1),
+  /// From /api/analyze. Also verified to belong to this user — otherwise anyone could attach
   /// (and then read back) someone else's photo by guessing an id.
   photoId: z.string().optional(),
   barcode: z.string().optional(),
@@ -44,7 +46,13 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return Response.json({ error: z.treeifyError(parsed.error) }, { status: 400 });
   }
-  const { date, meal, items, photoId, barcode } = parsed.data;
+  const { date, mealId, items, photoId, barcode } = parsed.data;
+
+  // The meal must be one of this user's own slots. Unlike the photo below, a bad mealId is
+  // fatal — there's nowhere to put the food.
+  if (!user.meals.some((m) => m.id === mealId)) {
+    return Response.json({ error: "No such meal" }, { status: 400 });
+  }
 
   // Never take a client-supplied id on trust. If the photo isn't this user's, drop the link
   // rather than reject the meal — the food is still worth logging.
@@ -56,7 +64,7 @@ export async function POST(request: NextRequest) {
     data: items.map((item) => ({
       userId: user.id,
       date: toDbDate(date),
-      meal,
+      mealId,
       photoId: ownsPhoto ? photoId : null,
       barcode,
       ...item,

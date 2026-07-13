@@ -10,11 +10,24 @@ datasource db {
   provider = "postgresql"
 }
 
-enum MealType {
-  BREAKFAST
-  LUNCH
-  SNACK
-  DINNER
+/// A meal slot in the user's day — "Breakfast", "Tea time", "Bed time", whatever they call it.
+///
+/// This used to be a four-value enum, which meant the app decided how you eat. It doesn't:
+/// people have pre-workout, post-workout, chai, a midnight snack. Every user gets the usual
+/// four seeded, and can rename, reorder, add and remove from there.
+model MealSlot {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  /// Display order, not a time of day — "tea" happens at wildly different hours for different
+  /// people, and sorting by a clock would fight the user rather than help them.
+  order  Int
+
+  entries FoodEntry[]
+
+  @@unique([userId, name])
+  @@index([userId, order])
 }
 
 /// Where a food's nutrition numbers came from. Drives the "estimated" badge in the UI.
@@ -56,6 +69,7 @@ model User {
   sessions Session[]
 
   goal    Goal?
+  meals   MealSlot[]
   entries FoodEntry[]
   photos  Photo[]
 }
@@ -116,7 +130,10 @@ model FoodEntry {
   /// Local calendar day. A DATE column (not timestamp) so a meal logged at 11pm IST
   /// never drifts into the previous day via UTC conversion.
   date   DateTime @db.Date
-  meal   MealType
+  /// Restrict, not Cascade: deleting a meal slot must never silently delete the food you ate
+  /// in it. The API refuses to remove a slot that still has entries and says how many.
+  mealId String
+  meal   MealSlot @relation(fields: [mealId], references: [id], onDelete: Restrict)
 
   name     String
   /// What the user sees: quantity + unit, e.g. 2 × "roti".
