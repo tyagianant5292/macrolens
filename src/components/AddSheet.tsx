@@ -1,12 +1,13 @@
 "use client";
 
-import { Barcode, Camera, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Barcode, Camera, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import type { DraftItem, DraftResponse, MealSlot } from "@/lib/api-types";
 import { downscale } from "@/lib/downscale";
 import { round, scaleToGrams, type Per100g } from "@/lib/nutrition/types";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { MacroLine } from "./NutritionRow";
+import { SourceBadge } from "./SourceBadge";
 
 type Props = {
   meal: MealSlot;
@@ -252,15 +253,7 @@ export function AddSheet({ meal, day, onClose, onSaved }: Props) {
                           unsure
                         </span>
                       )}
-                      {item.source === "AI" && (
-                        <span
-                          title="Estimated by AI, not from a nutrition database"
-                          className="flex shrink-0 items-center gap-0.5 rounded bg-surface px-1 py-0.5 text-[9px] font-medium uppercase text-muted"
-                        >
-                          <Sparkles className="size-2.5" />
-                          est
-                        </span>
-                      )}
+                      <SourceBadge source={item.source} />
                     </div>
                     <div className="mt-1">
                       <MacroLine n={item} />

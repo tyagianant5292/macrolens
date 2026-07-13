@@ -1,11 +1,12 @@
 "use client";
 
-import { Barcode, ChevronDown, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { Entry, MealSlot } from "@/lib/api-types";
 import { round } from "@/lib/nutrition/types";
 import { sumEntries } from "@/lib/totals";
 import { MacroLine, NutritionDetail } from "./NutritionRow";
+import { SourceBadge } from "./SourceBadge";
 
 type Props = {
   meal: MealSlot;
@@ -73,22 +74,7 @@ export function MealCard({ meal, entries, onAdd, onDelete, onGramsChange }: Prop
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm capitalize">{e.name}</span>
-                      {e.source === "AI" && (
-                        // The user needs to know which numbers are a model's guess vs lab data.
-                        <span
-                          title="Estimated by AI — not from a nutrition database"
-                          className="flex shrink-0 items-center gap-0.5 rounded bg-surface-2 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted"
-                        >
-                          <Sparkles className="size-2.5" />
-                          est
-                        </span>
-                      )}
-                      {e.source === "OFF" && (
-                        <Barcode
-                          className="size-3 shrink-0 text-muted"
-                          aria-label="From the manufacturer's label"
-                        />
-                      )}
+                      <SourceBadge source={e.source} />
                       <ChevronDown
                         className={`ml-auto size-3.5 shrink-0 text-muted transition-transform ${
                           isOpen ? "rotate-180" : ""
@@ -131,7 +117,7 @@ export function MealCard({ meal, entries, onAdd, onDelete, onGramsChange }: Prop
                   </button>
                 </div>
 
-                {isOpen && <NutritionDetail n={e} />}
+                {isOpen && <NutritionDetail n={e} source={e.source} />}
               </li>
             );
           })}

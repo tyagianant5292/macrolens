@@ -140,9 +140,9 @@ async function resolveFood(name: string, usdaQuery: string): Promise<CachedFood>
   return resolved;
 }
 
-/// Resolving all of a photo's foods at once means firing every USDA lookup simultaneously,
-/// and USDA throttles that burst — so a plate with six items would lose two of them to the
-/// AI estimator for no reason. Three at a time is enough to stay quick without tripping it.
+/// Bounded, but not because of USDA — its failures turned out to be random, not burst-related
+/// (see usda.ts). This cap is about the model: each miss fires a pickUsdaMatch call, and a
+/// nine-item plate shouldn't open nine concurrent connections to the gateway.
 const USDA_CONCURRENCY = 3;
 
 /// Turn parsed items into fully-costed entries.

@@ -1,6 +1,8 @@
 "use client";
 
+import type { Source } from "@/lib/api-types";
 import { round, TRACKED_MICROS, type MicroKey, type Micros } from "@/lib/nutrition/types";
+import { SourceLine } from "./SourceBadge";
 
 const MACROS = [
   { key: "protein", label: "Protein", color: "var(--protein)" },
@@ -56,7 +58,7 @@ export function MacroLine({ n }: { n: Nutrition }) {
 /// The full breakdown, shown when a food is tapped open. Macros with their real names, then
 /// every micronutrient the data source actually reported — nothing is invented to fill gaps,
 /// so a food with no vitamin data simply shows fewer rows.
-export function NutritionDetail({ n }: { n: Nutrition }) {
+export function NutritionDetail({ n, source }: { n: Nutrition; source: Source }) {
   const micros = n.micros ?? {};
   const present = (Object.keys(MICRO_LABELS) as MicroKey[]).filter(
     (k) => (micros[k] ?? 0) > 0,
@@ -114,6 +116,10 @@ export function NutritionDetail({ n }: { n: Nutrition }) {
           No vitamin or mineral data for this food.
         </p>
       )}
+
+      <div className="border-t border-border pt-2.5">
+        <SourceLine source={source} />
+      </div>
     </div>
   );
 }

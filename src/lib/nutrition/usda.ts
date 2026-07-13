@@ -48,21 +48,39 @@ const CANDIDATES = 5;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/// api.data.gov throttles bursts, and it does it with a 400 rather than a 429 — so a photo
-/// resolving six foods at once gets a couple of them rejected for no reason to do with the
-/// query. Left unhandled that's invisible: lookupUsda returns null, the food silently falls
-/// through to the AI estimator, and you never find out you had real data available.
-/// Retrying clears it; the same query that 400s comes back 200 a moment later.
-async function fetchWithRetry(url: URL, attempts = 3): Promise<Response | null> {
-  for (let i = 0; i < attempts; i++) {
+/// USDA's edge is genuinely unreliable, and it fails in the worst possible way: nginx returns
+/// an HTML "400 Bad Request" page instead of JSON, for a request that is perfectly valid.
+///
+/// Measured, not guessed: the SAME query, sent 20 times sequentially with a 350ms gap, failed
+/// 11 times. 55%. It is not rate limiting — `x-ratelimit-remaining` sits at 3543 of 3600, and
+/// the failed requests don't even decrement it, so they never reach the API at all. It is not
+/// bursting either; pacing the requests out changes nothing. It's just flaky.
+///
+/// That matters because the failure is silent by default: searchUsda returns [], the food
+/// falls through to the AI estimator, and the log quietly records a guess for a food USDA
+/// could have answered exactly. In one real day, three of eight foods were downgraded this
+/// way — "Avocado, raw" was literally USDA's top hit and we used an AI guess instead.
+///
+/// So: retry hard. Failures cost no quota and aren't rate-limit related, so there's no reason
+/// to back off politely. Eight attempts takes 55% down to under 1%.
+const ATTEMPTS = 8;
+
+async function fetchWithRetry(url: URL): Promise<Response | null> {
+  for (let i = 0; i < ATTEMPTS; i++) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(url, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
       // 404 is a real "not in the database" — don't waste retries on it.
-      if (res.ok || res.status === 404) return res;
+      if (res.status === 404) return res;
+      // The flaky failure arrives as HTML, sometimes even with a 2xx. Check the body type, not
+      // just the status — trusting the status is what made this silent in the first place.
+      if (res.ok && res.headers.get("content-type")?.includes("json")) return res;
     } catch {
-      // network blip; fall through to the backoff
+      // network blip; fall through to the retry
     }
-    if (i < attempts - 1) await sleep(300 * 2 ** i);
+    if (i < ATTEMPTS - 1) await sleep(150);
   }
   return null;
 }
@@ -108,9 +126,21 @@ export async function searchUsda(query: string): Promise<UsdaHit[]> {
   for (const t of DATA_TYPES) url.searchParams.append("dataType", t);
 
   const res = await fetchWithRetry(url);
-  if (!res?.ok) return [];
+  if (!res?.ok) {
+    // Not silent. When this happens we fall back to an AI guess for a food USDA could have
+    // answered exactly, and the only way anyone ever finds out is a log line.
+    console.warn(`[usda] lookup failed after retries: "${query}" — falling back to AI`);
+    return [];
+  }
 
-  const data = (await res.json()) as { foods?: UsdaFood[] };
+  let data: { foods?: UsdaFood[] };
+  try {
+    data = (await res.json()) as { foods?: UsdaFood[] };
+  } catch {
+    console.warn(`[usda] non-JSON response for "${query}" — falling back to AI`);
+    return [];
+  }
+
   return (data.foods ?? [])
     .map((f) => toHit(f, query))
     .filter((h): h is UsdaHit => h !== null);

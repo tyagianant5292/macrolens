@@ -7,6 +7,7 @@ import { DayHeader } from "@/components/DayHeader";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { MealCard } from "@/components/MealCard";
 import { MicrosPanel } from "@/components/MicrosPanel";
+import { NewMealButton } from "@/components/NewMealButton";
 import { WeekChart, type WeekDay } from "@/components/WeekChart";
 import type { DayResponse, Goal, MealSlot } from "@/lib/api-types";
 import { todayYmd } from "@/lib/date";
@@ -142,6 +143,8 @@ export function DayView({ accessory }: { accessory?: React.ReactNode }) {
                 onGramsChange={changeGrams}
               />
             ))}
+
+            <NewMealButton onCreated={refresh} />
 
             <MicrosPanel totals={data.totals} />
 
