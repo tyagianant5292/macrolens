@@ -1,0 +1,133 @@
+// MacroLens — AI-powered diet & macro tracker
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  SNACK
+  DINNER
+}
+
+/// Where a food's nutrition numbers came from. Drives the "estimated" badge in the UI.
+enum NutritionSource {
+  USDA // FoodData Central — measured lab values
+  OFF // Open Food Facts — the manufacturer's own label, via barcode
+  AI // LLM estimate — approximate, shown with a warning
+  MANUAL // User typed the numbers in themselves
+}
+
+/// A meal photo. Stored as bytes in Postgres rather than object storage: a downscaled plate
+/// photo is ~80KB, this app is single-digit users, and it keeps deploys to "set DATABASE_URL"
+/// with no bucket to provision. Swap to Vercel Blob (put the URL in FoodEntry.photoUrl, which
+/// already exists) if you ever outgrow that — nothing else has to change.
+model Photo {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaType String
+  bytes     Bytes
+  createdAt DateTime    @default(now())
+  entries   FoodEntry[]
+
+  @@index([userId])
+}
+
+model User {
+  id String @id @default(cuid())
+  /// Clerk's user id. The only thing that identifies a request — email is display data and
+  /// can change under you, so never key auth off it.
+  clerkId   String      @unique
+  email     String?
+  name      String?
+  createdAt DateTime    @default(now())
+  goal      Goal?
+  entries   FoodEntry[]
+  photos    Photo[]
+}
+
+/// Daily targets. Micros are deliberately not goal-tracked — dial in macros first.
+model Goal {
+  id      String @id @default(cuid())
+  userId  String @unique
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kcal    Int    @default(2500)
+  protein Int    @default(150)
+  carbs   Int    @default(280)
+  fat     Int    @default(70)
+  fiber   Int    @default(30)
+}
+
+/// One food eaten at one meal on one day. Nutrition is denormalised (copied in at
+/// log time) so that editing a FoodCache row never rewrites history.
+model FoodEntry {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Local calendar day. A DATE column (not timestamp) so a meal logged at 11pm IST
+  /// never drifts into the previous day via UTC conversion.
+  date   DateTime @db.Date
+  meal   MealType
+
+  name     String
+  /// What the user sees: quantity + unit, e.g. 2 × "roti".
+  quantity Float  @default(1)
+  unit     String @default("serving")
+  /// What the maths uses. Every nutrition field below is the total for this many grams.
+  grams    Float
+
+  kcal    Float
+  protein Float
+  carbs   Float
+  fat     Float
+  fiber   Float @default(0)
+  sugar   Float @default(0)
+  /// Micronutrients as { key: { amount, unit } }, e.g. { iron: { amount: 2.1, unit: "mg" } }.
+  /// JSON rather than columns because coverage varies wildly by food and data source.
+  micros  Json?
+
+  source     NutritionSource
+  /// AI portion-estimate confidence: "high" | "medium" | "low". Null for non-AI sources.
+  confidence String?
+  /// The photo this entry was read off, if any. Several entries share one photo — a thali
+  /// yields six rows from one picture. SetNull so deleting a photo doesn't delete the food.
+  photoId    String?
+  photo      Photo?  @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  /// For a future move to object storage; unused while photos live in the Photo table.
+  photoUrl   String?
+  /// EAN/UPC, when the entry came from a barcode scan.
+  barcode    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+/// Nutrition per 100g, keyed by normalised food name. Every resolved food lands here,
+/// so the second "2 roti" of the week costs a DB hit instead of a USDA + LLM round-trip.
+model FoodCache {
+  id          String          @id @default(cuid())
+  /// Lowercased, singularised, whitespace-collapsed name. See normaliseFoodKey().
+  key         String          @unique
+  displayName String
+  source      NutritionSource
+
+  kcal    Float
+  protein Float
+  carbs   Float
+  fat     Float
+  fiber   Float @default(0)
+  sugar   Float @default(0)
+  micros  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

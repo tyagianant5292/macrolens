@@ -1,26 +1,66 @@
 @import "tailwindcss";
 
+/* Dark-only. This is a phone app used in kitchens and gyms — every surface below
+   assumes a dark base, so there's no light theme to keep in sync. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0d10;
+  --surface: #14171c;
+  --surface-2: #1c2027;
+  --border: #272c35;
+  --foreground: #e8eaed;
+  --muted: #8b929e;
+
+  /* Chart/mark colours, not decoration — these were picked by running the palette
+     validator against the two dark surfaces below, not by eye. The originals were all
+     far too light for a dark surface (OKLCH L 0.69–0.84 against a required 0.48–0.67),
+     which is why they looked washed out sitting on #14171c.
+
+     Worst CVD pair is fiber↔carbs at ΔE 10.7 (protanopia) — inside the 8–12 floor band,
+     which is legal ONLY because every macro is direct-labelled ("Protein 120/150g") and
+     the weekly charts are small multiples with titles. Colour never carries identity on
+     its own here. If you ever render these as an unlabelled legend-only chart, that
+     stops being true and the palette has to change. */
+  --kcal: #c98500; /* single-series: weekly bars, headline */
+  --protein: #3987e5;
+  --carbs: #d95926;
+  --fat: #d55181;
+  --fiber: #008300;
+  --over: #e66767; /* status: past goal. Reserved — never a series colour. */
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+
+  --color-kcal: var(--kcal);
+  --color-protein: var(--protein);
+  --color-carbs: var(--carbs);
+  --color-fat: var(--fat);
+  --color-fiber: var(--fiber);
+  --color-over: var(--over);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--background);
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Spinners make the gram inputs cramped on mobile. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
