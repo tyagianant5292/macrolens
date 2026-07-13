@@ -54,16 +54,30 @@ model Photo {
   @@index([userId])
 }
 
-/// Identity lives here, in your own database — there is no third-party account to lose. The
-/// only way in is a magic link sent to `email`, so `email` IS the identity; a user who changes
-/// their address gets a new row, which for a personal food log is the correct behaviour.
+/// Identity lives here, in your own database — there is no third-party account to lose.
+/// `email` IS the identity; a user who changes their address gets a new row, which for a
+/// personal food log is the correct behaviour.
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  /// Set the first time an emailed OTP is verified. Null means the address is unproven.
   emailVerified DateTime?
   name          String?
   image         String?
   createdAt     DateTime  @default(now())
+
+  /// scrypt, salted, in the format produced by lib/password.ts. Null for an account that has
+  /// verified its email but not yet chosen a password.
+  passwordHash String?
+
+  /// Bumped to invalidate every existing session at once.
+  ///
+  /// Password auth forces JWT sessions (Auth.js can't persist credential logins to the Session
+  /// table), and a JWT cannot be revoked — signing out only drops the local cookie, so a copied
+  /// token stays valid until it expires. Every request already loads this row, so comparing
+  /// this counter against the one baked into the token costs nothing and hands revocation back.
+  /// Changing your password bumps it, which signs out every other device.
+  tokenVersion Int @default(0)
 
   accounts Account[]
   sessions Session[]
@@ -107,6 +121,26 @@ model VerificationToken {
   expires    DateTime
 
   @@id([identifier, token])
+}
+
+/// A one-time code emailed to prove you own an address — used to set a password the first time,
+/// and to reset a forgotten one. It is NOT a login: verifying a code only earns you the right
+/// to set a password, never a session. That keeps the six digits from being a second, weaker
+/// credential that never expires.
+model EmailOtp {
+  /// One live code per address. Requesting a new one replaces the old, so an old email in the
+  /// inbox stops working the moment you ask for another.
+  email String @id
+
+  /// Hashed, never stored raw. A leaked database must not hand out working login codes.
+  codeHash String
+  expires  DateTime
+
+  /// Brute-forcing 6 digits is a million guesses; this makes it five.
+  attempts Int @default(0)
+
+  /// Throttles resends — one code per minute per address.
+  createdAt DateTime @default(now())
 }
 
 /// Daily targets. Micros are deliberately not goal-tracked — dial in macros first.

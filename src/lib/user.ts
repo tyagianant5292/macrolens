@@ -22,7 +22,13 @@ export async function getCurrentUser() {
     where: { id: userId },
     include: { goal: true, meals: { orderBy: { order: "asc" } } },
   });
-  if (!user) return null; // session outlived the row (deleted account)
+  if (!user) return null; // token outlived the row (deleted account)
+
+  // The revocation check. Sessions are JWTs and can't be deleted server-side, so a token is
+  // only good while its stamped version still matches the account's. Changing the password
+  // bumps the account's version, and every token minted before that stops working here — which
+  // is the only reason "sign out everywhere" can mean anything at all.
+  if (session.tokenVersion !== user.tokenVersion) return null;
 
   // Auth.js's adapter creates the User row and knows nothing about goals or meals, so the
   // first request from a new account has to fill them in.

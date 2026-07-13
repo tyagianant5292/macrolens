@@ -1,24 +1,15 @@
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
 import { SignInForm } from "@/components/SignInForm";
+import { getCurrentUser } from "@/lib/user";
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ sent?: string; error?: string }>;
-}) {
-  // Already signed in? The sign-in page is a dead end — send them to their food log.
-  if (await auth()) redirect("/");
-
-  const { sent, error } = await searchParams;
-
-  async function send(formData: FormData) {
-    "use server";
-    const email = String(formData.get("email") ?? "").trim();
-    // redirectTo, not redirect:false — Auth.js sends the user to /sign-in?sent=1 via the
-    // `verifyRequest` page configured in auth.ts.
-    await signIn("email", { email, redirectTo: "/" });
-  }
+export default async function SignInPage() {
+  /// getCurrentUser(), NOT auth(). This is the more important of the two gates to get right:
+  /// `auth()` accepts any signature-valid JWT, including one revoked by a password change. If
+  /// this page bounced on that, a user whose token had just been revoked would be redirected
+  /// away from the only page that can let them back in — locked out of an app they own, with
+  /// no route to the sign-in form. Checking the live tokenVersion means a dead token lands
+  /// here, which is exactly where it should land.
+  if (await getCurrentUser()) redirect("/");
 
   return (
     <main className="grid flex-1 place-items-center px-6">
@@ -29,16 +20,7 @@ export default async function SignInPage({
         </p>
 
         <div className="mt-8">
-          {sent ? (
-            <div className="rounded-xl border border-border bg-surface p-5 text-center">
-              <p className="text-sm font-medium">Check your email</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted">
-                We sent you a sign-in link. It works once and expires in two hours.
-              </p>
-            </div>
-          ) : (
-            <SignInForm action={send} error={error} />
-          )}
+          <SignInForm />
         </div>
       </div>
     </main>
